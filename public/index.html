@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PM2 Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --card:     #1c2230;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --green:    #3fb950;
+      --red:      #f85149;
+      --yellow:   #d29922;
+      --blue:     #388bfd;
+      --radius:   10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .header-left { display: flex; align-items: center; gap: .75rem; }
+    .header-left h1 { font-size: 1.1rem; font-weight: 700; }
+    .header-left p  { font-size: .75rem; color: var(--muted); }
+
+    .stats { display: flex; gap: 1.25rem; }
+    .stat  { text-align: center; }
+    .stat-val   { font-size: 1.3rem; font-weight: 700; display: block; }
+    .stat-label { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+    .header-right { display: flex; align-items: center; gap: .75rem; }
+
+    #ws-badge {
+      font-size: .75rem;
+      padding: .25rem .7rem;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+    }
+    #ws-badge.connected { border-color: var(--green); color: var(--green); }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      padding: .75rem 1.5rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type=search], select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: .45rem .75rem;
+      font: inherit;
+      font-size: .875rem;
+      outline: none;
+    }
+    input[type=search] { flex: 1; min-width: 180px; }
+    input[type=search]:focus, select:focus { border-color: var(--blue); }
+
+    #count { font-size: .8rem; color: var(--muted); margin-left: auto; }
+
+    /* ── Grid ── */
+    main {
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .card.online { cursor: pointer; }
+    .card.online:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 24px rgba(0,0,0,.5);
+      border-color: var(--blue);
+    }
+
+    /* Status stripe at top */
+    .card-stripe {
+      height: 3px;
+      background: var(--muted);
+    }
+    .card.online  .card-stripe { background: var(--green); }
+    .card.stopped .card-stripe { background: var(--red); }
+    .card.errored .card-stripe { background: var(--red); }
+    .card.launching .card-stripe { background: var(--yellow); }
+
+    .card-body { padding: 1rem; display: flex; flex-direction: column; gap: .65rem; }
+
+    /* Name row */
+    .card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+    .card-title h2 {
+      font-size: .95rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pm-id {
+      font-size: .7rem;
+      color: var(--muted);
+      background: var(--bg);
+      border-radius: 4px;
+      padding: 1px 6px;
+      flex-shrink: 0;
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Metrics grid */
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .4rem;
+    }
+    .metric {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: .3rem .5rem;
+    }
+    .metric-label { font-size: .65rem; color: var(--muted); }
+    .metric-value { font-size: .82rem; font-weight: 600; }
+
+    /* Port */
+    .port-info { font-size: .78rem; color: var(--muted); }
+    .port-info b { color: var(--blue); }
+
+    /* Button */
+    .btn-open {
+      width: 100%;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: .5rem;
+      font: inherit;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      margin-top: auto;
+    }
+    .btn-open:disabled {
+      background: var(--bg);
+      color: var(--muted);
+      cursor: default;
+    }
+    .btn-open:not(:disabled):hover { opacity: .85; }
+
+    /* Empty / error states */
+    #empty {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 4rem;
+      color: var(--muted);
+    }
+    #empty p:first-child { font-size: 2.5rem; margin-bottom: .75rem; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      main { padding: 1rem; }
+      header { padding: .75rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span style="font-size:1.6rem">🖥️</span>
+    <div>
+      <h1>PM2 Dashboard</h1>
+      <p>Monitor de serviços locais</p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-val" id="stat-total" style="color:var(--blue)">—</span>
+      <span class="stat-label">Total</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="stat-online" style="color:var(--green)">—</span>
+      <span class="stat-label">Online</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="stat-offline" style="color:var(--red)">—</span>
+      <span class="stat-label">Offline</span>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <span id="ws-badge">⬤ Conectando…</span>
+    <span id="updated" style="font-size:.72rem;color:var(--muted)"></span>
+  </div>
+</header>
+
+<div class="toolbar">
+  <input type="search" id="search" placeholder="🔍  Buscar serviço…" />
+  <select id="sort">
+    <option value="status">Ordenar: Status</option>
+    <option value="name">Ordenar: Nome</option>
+    <option value="cpu">Ordenar: CPU</option>
+    <option value="memory">Ordenar: Memória</option>
+  </select>
+  <span id="count"></span>
+</div>
+
+<main id="grid">
+  <div id="empty">
+    <p>⏳</p>
+    <p>Conectando ao PM2…</p>
+  </div>
+</main>
+
+<script>
+  const grid   = document.getElementById('grid');
+  const search = document.getElementById('search');
+  const sort   = document.getElementById('sort');
+  const badge  = document.getElementById('ws-badge');
+  const updEl  = document.getElementById('updated');
+  const countEl= document.getElementById('count');
+
+  let allProcs = [];
+
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  const WS_URL = `ws://${location.host}`;
+  let ws, reconnectTimer;
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      badge.textContent = '⬤ Conectado';
+      badge.className   = 'connected';
+    };
+
+    ws.onmessage = ({ data }) => {
+      try {
+        allProcs = JSON.parse(data);
+        render();
+        updEl.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR');
+      } catch (_) {}
+    };
+
+    ws.onclose = () => {
+      badge.textContent = '⬤ Reconectando…';
+      badge.className   = '';
+      reconnectTimer = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => ws.close();
+  }
+
+  connect();
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const STATUS_ORDER = { online:0, launching:1, stopping:2, stopped:3, errored:4 };
+
+  function render() {
+    const q = search.value.trim().toLowerCase();
+    const by = sort.value;
+
+    let list = allProcs.filter(p =>
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      String(p.port || '').includes(q)
+    );
+
+    list = [...list].sort((a, b) => {
+      if (by === 'status')  return (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) || a.name.localeCompare(b.name);
+      if (by === 'cpu')     return (b.cpu || 0) - (a.cpu || 0);
+      if (by === 'memory')  return (b.memory || 0) - (a.memory || 0);
+      return a.name.localeCompare(b.name);
+    });
+
+    countEl.textContent = `${list.length} / ${allProcs.length} serviços`;
+
+    if (!list.length) {
+      grid.innerHTML = `<div id="empty">
+        <p>${q ? '🔍' : '🌀'}</p>
+        <p>${q ? `Nenhum resultado para "${q}"` : 'Nenhum processo PM2 encontrado'}</p>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = list.map(cardHTML).join('');
+
+    // Attach open-button listeners
+    grid.querySelectorAll('.btn-open[data-url]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.open(btn.dataset.url, '_blank');
+      });
+    });
+
+    // Whole-card click
+    grid.querySelectorAll('.card.online[data-url]').forEach(card => {
+      card.addEventListener('click', () => window.open(card.dataset.url, '_blank'));
+    });
+
+    // Stats
+    const online = allProcs.filter(p => p.status === 'online').length;
+    document.getElementById('stat-total').textContent  = allProcs.length;
+    document.getElementById('stat-online').textContent = online;
+    document.getElementById('stat-offline').textContent = allProcs.length - online;
+  }
+
+  // ── Card template ──────────────────────────────────────────────────────────
+  function cardHTML(p) {
+    const statusColor = { online:'var(--green)', stopped:'var(--red)', errored:'var(--red)', launching:'var(--yellow)' }[p.status] || 'var(--muted)';
+    const statusLabel = { online:'Online', stopped:'Parado', errored:'Erro', launching:'Iniciando', stopping:'Parando' }[p.status] || p.status;
+
+    const mem = p.memory ? (p.memory / 1024 / 1024).toFixed(1) + ' MB' : '0 MB';
+    const cpu = (p.cpu || 0).toFixed(1) + '%';
+    const uptime = formatUptime(p.uptime);
+
+    const canOpen = p.status === 'online' && p.url;
+    const cardAttr = canOpen ? `data-url="${p.url}"` : '';
+
+    const btnAttr = canOpen
+      ? `data-url="${p.url}"`
+      : 'disabled';
+
+    const btnLabel = canOpen ? '🚀 Abrir Projeto' : (p.status === 'online' ? '🔌 Sem URL' : '⛔ Offline');
+
+    return `
+      <div class="card ${p.status}" ${cardAttr}>
+        <div class="card-stripe"></div>
+        <div class="card-body">
+          <div class="card-title">
+            <h2>${esc(p.name)}</h2>
+            <span class="pm-id">#${p.id}</span>
+          </div>
+
+          <div class="status-badge">
+            <span class="dot" style="background:${statusColor}"></span>
+            <span style="color:${statusColor}">${statusLabel}</span>
+          </div>
+
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">CPU</div>
+              <div class="metric-value" style="color:${cpuColor(p.cpu)}">${cpu}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Memória</div>
+              <div class="metric-value">${mem}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Uptime</div>
+              <div class="metric-value">${uptime}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Restarts</div>
+              <div class="metric-value">${p.restarts}</div>
+            </div>
+          </div>
+
+          <div class="port-info">
+            ${p.port ? `🔌 Porta <b>${p.port}</b>` : '🔌 Porta não identificada'}
+          </div>
+
+          <button class="btn-open" ${btnAttr}>${btnLabel}</button>
+        </div>
+      </div>`;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function formatUptime(ms) {
+    if (!ms) return '—';
+    const s = Math.floor((Date.now() - ms) / 1000);
+    if (s < 60)  return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+    if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+    return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
+  }
+
+  function cpuColor(cpu) {
+    if (cpu >= 80) return 'var(--red)';
+    if (cpu >= 50) return 'var(--yellow)';
+    return 'var(--green)';
+  }
+
+  function esc(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Reactivity
+  search.addEventListener('input', render);
+  sort.addEventListener('change', render);
+</script>
+</body>
+</html>
