@@ -4,6 +4,9 @@ Dashboard web para visualizar todos os serviços rodando no PM2 localmente.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![PM2](https://img.shields.io/badge/PM2-required-blue)
 
+<img width="2559" height="1389" alt="image" src="https://github.com/user-attachments/assets/96e3f57c-49d0-4cb9-b917-45389cb2a62c" />
+
+
 ## O que faz
 
 - Lista todos os processos PM2 automaticamente
